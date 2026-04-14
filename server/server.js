@@ -1,0 +1,87 @@
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+
+const app = express();
+const server = http.createServer(app);
+
+// ✅ Socket.io with CORS (VERY IMPORTANT)
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+  },
+});
+
+// Store users
+let users = {};
+
+// Default route
+app.get("/", (req, res) => {
+  res.send("Server is running 🚀");
+});
+
+// Socket connection
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  // Register user
+  socket.on("register_user", (username) => {
+    users[username] = {
+      id: socket.id,
+      online: true,
+      lastSeen: "just now",
+    };
+
+    io.emit("online_users", users);
+  });
+
+  // Send message
+  socket.on("send_message", (data) => {
+    const receiver = users[data.to];
+
+    if (receiver) {
+      io.to(receiver.id).emit("receive_message", data);
+
+      // delivered update
+      io.to(socket.id).emit("delivered", data.id);
+    }
+  });
+
+  // Seen
+  socket.on("seen", ({ id, to }) => {
+    const receiver = users[to];
+    if (receiver) {
+      io.to(receiver.id).emit("seen_update", id);
+    }
+  });
+
+  // Typing
+  socket.on("typing", ({ to, from }) => {
+    const receiver = users[to];
+    if (receiver) {
+      io.to(receiver.id).emit("typing", `${from} is typing...`);
+    }
+  });
+
+  // Disconnect
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+
+    for (let user in users) {
+      if (users[user].id === socket.id) {
+        users[user].online = false;
+        users[user].lastSeen = new Date().toLocaleTimeString();
+      }
+    }
+
+    io.emit("online_users", users);
+  });
+});
+
+// ✅ PORT (Render ki important)
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
