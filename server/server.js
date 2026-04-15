@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Socket.io with CORS
+// ✅ Socket.io setup
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -13,15 +13,15 @@ const io = new Server(server, {
   },
 });
 
-// Store users
+// ✅ Users store
 let users = {};
 
-// Default route
+// ✅ Default route
 app.get("/", (req, res) => {
   res.send("Server is running 🚀");
 });
 
-// Socket connection
+// ✅ Socket connection
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
@@ -36,36 +36,40 @@ io.on("connection", (socket) => {
     };
 
     console.log("Registered:", username);
+
     io.emit("online_users", users);
   });
 
-  // ✅ Send message
+  // ✅ Send message (TEXT + IMAGE)
   socket.on("send_message", (data) => {
-    console.log("Message received:", data);
+    console.log("Incoming message:", data);
 
     const receiver = users[data.to];
 
     if (receiver) {
+      // 👉 Send to receiver
       io.to(receiver.id).emit("receive_message", data);
 
-      // delivered update
+      // 👉 Delivered status back to sender
       io.to(socket.id).emit("delivered", data.id);
     } else {
-      console.log("Receiver not found:", data.to);
+      console.log("❌ Receiver not found:", data.to);
     }
   });
 
-  // ✅ Seen
+  // ✅ Seen update
   socket.on("seen", ({ id, to }) => {
     const receiver = users[to];
+
     if (receiver) {
       io.to(receiver.id).emit("seen_update", id);
     }
   });
 
-  // ✅ Typing
+  // ✅ Typing indicator
   socket.on("typing", ({ to, from }) => {
     const receiver = users[to];
+
     if (receiver) {
       io.to(receiver.id).emit("typing", `${from} is typing...`);
     }
@@ -86,7 +90,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ PORT (Render)
+// ✅ PORT (Render compatible)
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
