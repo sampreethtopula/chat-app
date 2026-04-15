@@ -6,7 +6,6 @@ function App() {
 
   const [username, setUsername] = useState("");
   const [chatUser, setChatUser] = useState("");
-  const [manualUser, setManualUser] = useState("");
   const [users, setUsers] = useState({});
   const [showChat, setShowChat] = useState(false);
 
@@ -16,9 +15,7 @@ function App() {
 
   const bottomRef = useRef();
 
-  const isMobile = window.innerWidth < 600;
-
-  // ✅ SOCKET CONNECT
+  // SOCKET CONNECT
   useEffect(() => {
     const newSocket = io("https://chat-app-1-xzov.onrender.com");
 
@@ -27,64 +24,33 @@ function App() {
     newSocket.on("online_users", setUsers);
 
     newSocket.on("receive_message", (data) => {
-      setMessages((prev) => [...prev, { ...data, status: "delivered" }]);
-      newSocket.emit("seen", { id: data.id, to: data.from });
-    });
-
-    newSocket.on("delivered", (id) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, status: "delivered" } : m
-        )
-      );
-    });
-
-    newSocket.on("seen_update", (id) => {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id ? { ...m, status: "seen" } : m
-        )
-      );
-    });
-
-    newSocket.on("typing", (msg) => {
-      setTyping(msg);
-      setTimeout(() => setTyping(""), 1500);
+      setMessages((prev) => [...prev, data]);
     });
 
     return () => newSocket.disconnect();
   }, []);
 
-  // ✅ AUTO SCROLL
+  // AUTO SCROLL
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // ✅ START CHAT
+  // LOGIN
   const startChat = () => {
-    if (!socket) return;
-
-    const clean = username.toLowerCase().trim();
-    if (!clean) return alert("Enter username");
-
-    setUsername(clean);
-    socket.emit("register_user", clean);
+    if (!username.trim()) return alert("Enter username");
+    socket.emit("register_user", username);
     setShowChat(true);
   };
 
-  // ✅ SEND TEXT
+  // SEND MESSAGE
   const sendMessage = () => {
-    if (!socket) return;
-    if (!chatUser) return alert("Select user");
-    if (!message.trim()) return;
+    if (!message.trim() || !chatUser) return;
 
     const data = {
-      id: Date.now(),
       from: username,
       to: chatUser,
       message,
       time: new Date().toLocaleTimeString(),
-      status: "sent",
     };
 
     socket.emit("send_message", data);
@@ -92,47 +58,10 @@ function App() {
     setMessage("");
   };
 
-  // ✅ SEND IMAGE
-  const sendImage = (e) => {
-    if (!socket) return;
-    if (!chatUser) return alert("Select user");
-
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (file.size > 500 * 1024) {
-      alert("Image too large");
-      return;
-    }
-
-    const reader = new FileReader();
-
-    reader.onloadend = () => {
-      const data = {
-        id: Date.now(),
-        from: username,
-        to: chatUser,
-        file: reader.result,
-        type: "image",
-        time: new Date().toLocaleTimeString(),
-        status: "sent",
-      };
-
-      socket.emit("send_message", data);
-      setMessages((prev) => [...prev, data]);
-    };
-
-    reader.readAsDataURL(file);
-  };
-
+  // ================= UI =================
   return (
-    <div
-      style={{
-        display: isMobile ? "block" : "flex",
-        height: "100vh",
-        fontFamily: "Arial",
-      }}
-    >
+    <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      
       {/* LOGIN */}
       {!showChat ? (
         <div style={{ margin: "auto" }}>
@@ -142,68 +71,52 @@ function App() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
           />
-          <br />
-          <br />
+          <br /><br />
           <button onClick={startChat}>Start</button>
         </div>
       ) : (
-        <>
-          {/* LEFT PANEL (HIDE IN MOBILE) */}
-          {!isMobile && (
-            <div
-              style={{
-                width: "280px",
-                background: "#111b21",
-                color: "white",
-                padding: "10px",
-              }}
-            >
-              <h3>Chats</h3>
+        <div style={{ display: "flex", height: "100%" }}>
 
-              {Object.keys(users)
-                .filter((u) => u !== username)
-                .map((u, i) => (
-                  <div
-                    key={i}
-                    onClick={() => {
-                      setChatUser(u);
-                      setMessages([]);
-                    }}
-                    style={{
-                      padding: "10px",
-                      cursor: "pointer",
-                      background: u === chatUser ? "#2a3942" : "",
-                    }}
-                  >
-                    <b>{u}</b>
-                    <div style={{ fontSize: "12px" }}>
-                      {users[u].online
-                        ? "🟢 online"
-                        : "last seen " + users[u].lastSeen}
-                    </div>
+          {/* LEFT USERS PANEL */}
+          <div
+            style={{
+              width: window.innerWidth < 768 ? "100%" : "30%",
+              background: "#111b21",
+              color: "white",
+              display: chatUser && window.innerWidth < 768 ? "none" : "block"
+            }}
+          >
+            <h3 style={{ padding: "10px" }}>Chats</h3>
+
+            {Object.keys(users)
+              .filter((u) => u !== username)
+              .map((u, i) => (
+                <div
+                  key={i}
+                  onClick={() => {
+                    setChatUser(u);
+                    setMessages([]);
+                  }}
+                  style={{
+                    padding: "15px",
+                    borderBottom: "1px solid #2a3942",
+                    cursor: "pointer"
+                  }}
+                >
+                  <b>{u}</b>
+                  <div style={{ fontSize: "12px" }}>
+                    {users[u].online ? "🟢 online" : "offline"}
                   </div>
-                ))}
+                </div>
+              ))}
+          </div>
 
-              <input
-                placeholder="Enter username"
-                value={manualUser}
-                onChange={(e) => setManualUser(e.target.value)}
-                style={{ width: "100%", marginTop: "10px" }}
-              />
-              <button
-                style={{ width: "100%" }}
-                onClick={() => setChatUser(manualUser.toLowerCase())}
-              >
-                Chat
-              </button>
-            </div>
-          )}
-
-          {/* RIGHT PANEL */}
+          {/* RIGHT CHAT PANEL */}
           <div
             style={{
               flex: 1,
-              display: "flex",
+              display:
+                !chatUser && window.innerWidth < 768 ? "none" : "flex",
               flexDirection: "column",
             }}
           >
@@ -212,20 +125,35 @@ function App() {
               style={{
                 background: "#202c33",
                 color: "white",
-                padding: "10px",
+                padding: "15px",
+                display: "flex",
+                alignItems: "center",
               }}
             >
+              {window.innerWidth < 768 && (
+                <button
+                  onClick={() => setChatUser("")}
+                  style={{
+                    marginRight: "10px",
+                    background: "none",
+                    border: "none",
+                    color: "white",
+                    fontSize: "18px",
+                  }}
+                >
+                  ←
+                </button>
+              )}
               <b>{chatUser || "Select user"}</b>
             </div>
 
-            {/* CHAT */}
+            {/* CHAT AREA */}
             <div
               style={{
                 flex: 1,
                 overflowY: "scroll",
                 padding: "10px",
                 background: "#e5ddd5",
-                marginBottom: "70px",
               }}
             >
               {messages.map((msg, i) => (
@@ -239,32 +167,17 @@ function App() {
                 >
                   <div
                     style={{
-                      maxWidth: "70%",
                       background:
                         msg.from === username ? "#dcf8c6" : "#fff",
                       padding: "10px",
                       borderRadius: "10px",
                       margin: "5px",
+                      maxWidth: "70%",
                     }}
                   >
-                    {msg.type === "image" && msg.file ? (
-                      <img
-                        src={msg.file}
-                        alt="img"
-                        style={{ width: "150px" }}
-                      />
-                    ) : (
-                      msg.message
-                    )}
-
+                    {msg.message}
                     <div style={{ fontSize: "10px", textAlign: "right" }}>
-                      {msg.time}{" "}
-                      {msg.from === username &&
-                        (msg.status === "sent"
-                          ? "✔"
-                          : msg.status === "delivered"
-                          ? "✔✔"
-                          : "✔✔ 🔵")}
+                      {msg.time}
                     </div>
                   </div>
                 </div>
@@ -272,46 +185,45 @@ function App() {
               <div ref={bottomRef}></div>
             </div>
 
-            {/* TYPING */}
-            <div style={{ paddingLeft: "10px", fontSize: "12px" }}>
-              {typing}
-            </div>
-
             {/* INPUT */}
-            <div
-              style={{
-                position: "fixed",
-                bottom: "0",
-                left: isMobile ? "0" : "280px",
-                right: "0",
-                display: "flex",
-                padding: "10px",
-                background: "#f0f0f0",
-              }}
-            >
-              <input
-                value={message}
-                onChange={(e) => {
-                  setMessage(e.target.value);
-                  socket.emit("typing", {
-                    to: chatUser,
-                    from: username,
-                  });
-                }}
+            {chatUser && (
+              <div
                 style={{
-                  flex: 1,
+                  display: "flex",
                   padding: "10px",
-                  borderRadius: "20px",
+                  borderTop: "1px solid #ccc",
+                  background: "#f0f0f0",
                 }}
-                placeholder="Type message"
-              />
+              >
+                <input
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Type message"
+                  style={{
+                    flex: 1,
+                    padding: "10px",
+                    borderRadius: "20px",
+                    border: "1px solid #ccc",
+                  }}
+                />
 
-              <button onClick={sendMessage}>Send</button>
-
-              <input type="file" accept="image/*" onChange={sendImage} />
-            </div>
+                <button
+                  onClick={sendMessage}
+                  style={{
+                    marginLeft: "10px",
+                    background: "#25D366",
+                    color: "white",
+                    border: "none",
+                    padding: "10px 15px",
+                    borderRadius: "20px",
+                  }}
+                >
+                  Send
+                </button>
+              </div>
+            )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );
