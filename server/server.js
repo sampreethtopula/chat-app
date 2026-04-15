@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const app = express();
 const server = http.createServer(app);
 
-// ✅ Socket.io with CORS (VERY IMPORTANT)
+// ✅ Socket.io with CORS
 const io = new Server(server, {
   cors: {
     origin: "*",
@@ -25,19 +25,24 @@ app.get("/", (req, res) => {
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  // Register user
+  // ✅ Register user
   socket.on("register_user", (username) => {
+    if (!username) return;
+
     users[username] = {
       id: socket.id,
       online: true,
       lastSeen: "just now",
     };
 
+    console.log("Registered:", username);
     io.emit("online_users", users);
   });
 
-  // Send message
+  // ✅ Send message
   socket.on("send_message", (data) => {
+    console.log("Message received:", data);
+
     const receiver = users[data.to];
 
     if (receiver) {
@@ -45,10 +50,12 @@ io.on("connection", (socket) => {
 
       // delivered update
       io.to(socket.id).emit("delivered", data.id);
+    } else {
+      console.log("Receiver not found:", data.to);
     }
   });
 
-  // Seen
+  // ✅ Seen
   socket.on("seen", ({ id, to }) => {
     const receiver = users[to];
     if (receiver) {
@@ -56,7 +63,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Typing
+  // ✅ Typing
   socket.on("typing", ({ to, from }) => {
     const receiver = users[to];
     if (receiver) {
@@ -64,7 +71,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Disconnect
+  // ✅ Disconnect
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
 
@@ -79,7 +86,7 @@ io.on("connection", (socket) => {
   });
 });
 
-// ✅ PORT (Render ki important)
+// ✅ PORT (Render)
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
